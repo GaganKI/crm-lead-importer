@@ -40,6 +40,10 @@ export async function extractBatch(
         contents: `Map these ${payload.length} raw CSV rows to the GrowEasy CRM schema:\n\n${JSON.stringify(payload, null, 2)}`,
         config: {
           systemInstruction: SYSTEM_PROMPT,
+          // This is structured extraction, not a reasoning task — thinking mode adds a lot of
+          // latency (and cost) for no accuracy benefit here, and was blowing past Vercel's
+          // function time limit on larger batches. thinkingBudget: 0 disables it.
+          thinkingConfig: { thinkingBudget: 0 },
           tools: [{ functionDeclarations: [EXTRACT_TOOL] }],
           toolConfig: {
             functionCallingConfig: {
@@ -106,10 +110,10 @@ function normalizeBatchResult(
   return normalized;
 }
 
-// Free-tier Gemini defaults to ~10 requests/minute. Smaller batches mean more requests for
-// the same CSV, so we keep batches larger (40 rows) than the Claude version did, to stay
-// comfortably under the RPM ceiling for typical-sized test CSVs.
-export const BATCH_SIZE = 40;
+// Free-tier Gemini defaults to ~10 requests/minute. 20 rows per batch keeps each individual
+// call fast (especially now that thinking is disabled) and gives more frequent progress
+// updates on larger CSVs, while staying well under Vercel's function time limit per request.
+export const BATCH_SIZE = 20;
 
 export function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];

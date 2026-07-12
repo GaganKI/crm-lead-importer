@@ -29,7 +29,7 @@ export default function ProgressPipeline({ batchIndex, totalBatches, imported, s
       <div className="relative mt-8 flex items-center justify-between text-xs font-mono text-muted">
         <PipelineNode label="CSV rows" />
         <PipelineTrack />
-        <PipelineNode label="Claude mapping" active />
+        <PipelineNode label="Gemini mapping" active />
         <PipelineTrack />
         <PipelineNode label="CRM records" />
       </div>
