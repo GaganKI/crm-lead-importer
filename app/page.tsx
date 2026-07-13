@@ -222,12 +222,26 @@ export default function Home() {
           </div>
 
           <DataTable
-            columns={[{ key: '_status', label: 'status', width: '110px' }, ...CRM_COLUMNS, { key: '_note', label: 'reason', width: '220px' }]}
-            rows={visibleResults.map((r) => ({
-              _status: r.status,
-              _note: r.status === 'skipped' ? r.reason ?? '' : r.confidence !== undefined ? `confidence ${(r.confidence * 100).toFixed(0)}%` : '',
-              ...(r.record ?? {}),
-            }))}
+            columns={[{ key: '_status', label: 'status', width: '110px' }, ...CRM_COLUMNS, { key: '_note', label: 'reason', width: '260px' }]}
+            rows={visibleResults.map((r) => {
+              const rawPreview = r.raw
+                ? Object.entries(r.raw)
+                    .filter(([, v]) => v && v.trim())
+                    .slice(0, 4)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join('  ·  ')
+                : '';
+              return {
+                _status: r.status,
+                _note:
+                  r.status === 'skipped'
+                    ? [r.reason, rawPreview && `(original row — ${rawPreview})`].filter(Boolean).join('  ')
+                    : r.confidence !== undefined
+                      ? `confidence ${(r.confidence * 100).toFixed(0)}%`
+                      : '',
+                ...(r.record ?? {}),
+              };
+            })}
             maxHeight="560px"
             rowClassName={(row) => (row._status === 'skipped' ? 'opacity-60' : '')}
             renderCell={(col, row) => {

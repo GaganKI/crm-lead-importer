@@ -31,9 +31,14 @@ const config: Config = {
           '15%': { opacity: '1' },
           '100%': { transform: 'translateX(120px)', opacity: '0' },
         },
+        scan: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
       },
       animation: {
         flow: 'flow 1.8s linear infinite',
+        scan: 'scan 1.4s ease-in-out infinite',
       },
     },
   },

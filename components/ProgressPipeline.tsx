@@ -14,16 +14,20 @@ export default function ProgressPipeline({ batchIndex, totalBatches, imported, s
     <div className="rounded-2xl border border-border bg-surface p-6">
       <div className="flex items-center justify-between text-sm text-muted">
         <span>
-          Batch {Math.min(batchIndex, totalBatches)} of {totalBatches}
+          {batchIndex === 0 ? 'Starting…' : `Batch ${Math.min(batchIndex, totalBatches)} of ${totalBatches}`}
         </span>
-        <span>{pct}%</span>
+        <span>{batchIndex === 0 ? '' : `${pct}%`}</span>
       </div>
 
       <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-surface2">
-        <div
-          className="h-full rounded-full bg-signal transition-all duration-500 ease-out"
-          style={{ width: `${pct}%` }}
-        />
+        {batchIndex === 0 ? (
+          <div className="absolute inset-y-0 w-1/5 rounded-full bg-signal animate-scan" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-signal transition-all duration-500 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        )}
       </div>
 
       <div className="relative mt-8 flex items-center justify-between text-xs font-mono text-muted">

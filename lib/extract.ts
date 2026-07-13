@@ -44,6 +44,10 @@ export async function extractBatch(
           // latency (and cost) for no accuracy benefit here, and was blowing past Vercel's
           // function time limit on larger batches. thinkingBudget: 0 disables it.
           thinkingConfig: { thinkingBudget: 0 },
+          // temperature 0 for consistent, repeatable mapping given the same input — this is a
+          // deterministic extraction task, not creative generation, so we don't want run-to-run
+          // variance in the output.
+          temperature: 0,
           tools: [{ functionDeclarations: [EXTRACT_TOOL] }],
           toolConfig: {
             functionCallingConfig: {
@@ -65,7 +69,7 @@ export async function extractBatch(
         throw new Error('Malformed function response: results is not an array');
       }
 
-      return normalizeBatchResult(parsed.results, payload.length, batchStartIndex);
+      return normalizeBatchResult(parsed.results, rows, batchStartIndex);
     } catch (err) {
       lastError = err;
       const isLastAttempt = attempt === MAX_RETRIES;
@@ -76,34 +80,56 @@ export async function extractBatch(
   }
 
   console.error('Batch failed after retries:', lastError);
+  const reason = describeError(lastError);
   return payload.map(({ __row_index, ...raw }) => ({
     row_index: __row_index as number,
     status: 'skipped' as const,
-    reason: 'AI extraction failed for this batch after retries — please re-run or check the row manually.',
+    reason,
     raw: raw as Record<string, string>,
   }));
 }
 
+// Turns a raw SDK/network error into a message that's actually useful in the results table,
+// instead of a generic "extraction failed" that hides what really happened.
+function describeError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+
+  if (lower.includes('resource_exhausted') || lower.includes('429') || lower.includes('quota') || lower.includes('rate limit')) {
+    return 'Gemini free-tier rate limit or daily quota was hit for this batch. Wait a minute (per-minute limit) or try again tomorrow (daily limit), then re-upload — this is a quota issue, not a data problem.';
+  }
+  if (lower.includes('api key') || lower.includes('permission') || lower.includes('401') || lower.includes('403')) {
+    return 'Gemini rejected the request (invalid/missing API key or permissions). Check GEMINI_API_KEY in your environment.';
+  }
+  return `AI extraction failed for this batch after retries: ${msg.slice(0, 200)}`;
+}
+
 // Guards against a model returning too few/many rows, out-of-order rows, or missing fields,
-// so a single malformed response never crashes the request or silently drops a row.
+// so a single malformed response never crashes the request or silently drops a row. Also
+// attaches the original raw CSV row to every skipped result — whether the AI decided to skip
+// it (e.g. "no email or phone") or the row was simply omitted from the response — so the UI
+// can always show what was actually in the source row instead of a blank line.
 function normalizeBatchResult(
   results: ParsedResultRow[],
-  expectedCount: number,
+  originalRows: Record<string, string>[],
   batchStartIndex: number
 ): ParsedResultRow[] {
   const byIndex = new Map(results.map((r) => [r.row_index, r]));
   const normalized: ParsedResultRow[] = [];
 
-  for (let i = 0; i < expectedCount; i++) {
+  for (let i = 0; i < originalRows.length; i++) {
     const idx = batchStartIndex + i;
     const found = byIndex.get(idx);
     if (found) {
-      normalized.push(found);
+      normalized.push(
+        found.status === 'skipped' && !found.raw ? { ...found, raw: originalRows[i] } : found
+      );
     } else {
       normalized.push({
         row_index: idx,
         status: 'skipped',
         reason: 'Model omitted this row from its response.',
+        raw: originalRows[i],
       });
     }
   }

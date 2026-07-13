@@ -5,6 +5,8 @@ sheets, real-estate CRM exports, sales reports, manual spreadsheets) into GrowEa
 
 **Applying for:** Software Developer Intern
 
+**Live:** https://crm-lead-importer-beta.vercel.app/
+
 ## Why this approach
 
 Single Next.js app (App Router) instead of a separate Node/Express backend: the API routes run on
@@ -82,7 +84,12 @@ docker run -p 3000:3000 --env-file .env.local crm-importer
 - Capped at 5,000 rows per upload in `app/api/extract/route.ts` to keep a single request within
   a reasonable serverless execution window; raise `maxDuration` / add a queue for larger files.
 - Model is set to `gemini-2.5-flash` in `lib/extract.ts` — free-tier rate limits are roughly
-  10 requests/minute and 1,500/day at time of writing, which is why batches are sized at 40 rows.
-  On a very large CSV you may see the retry/backoff kick in more often; that's expected on a free
-  key, not a bug. Swap `MODEL` to `gemini-2.5-flash-lite` for higher free-tier throughput, or to
-  a paid model if you have billing enabled.
+  10 requests/minute and 1,500/day at time of writing, which is why batches are sized at 20 rows.
+  If you hammer the app with repeated test uploads, you can exhaust the free tier's per-minute or
+  per-day quota; when that happens every row in the affected batch(es) comes back "skipped" with
+  a reason that now explicitly says it's a quota issue (not a data problem) — check the `reason`
+  column in the results table, or the Vercel function logs, for the exact cause. Wait a minute
+  (per-minute cap) or a day (daily cap), or swap to a fresh free-tier key, then re-upload.
+- `temperature: 0` is set for the extraction call so the same CSV produces the same mapping on
+  repeated runs — the only source of run-to-run variance you should see is a batch actually
+  failing (see above), not the model itself being inconsistent.
